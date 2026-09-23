@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Calculus for backprop — reference</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<div class="kicker">Reference &middot; Deep Learning</div>
+<h1>Calculus for backprop</h1>
+<p class="sidenote">Compressed from <a href="../lessons/0001-derivatives-and-the-chain-rule.html">Lesson 0001</a>. Keep this open while writing <code>engine.py</code>.</p>
+
+<h2>The rule</h2>
+<pre><code>dz/dx = dz/dy &middot; dy/dx     (chain rule: multiply sensitivities along the chain)</code></pre>
+
+<h2>The gotcha</h2>
+<p>
+If a <code>Value</code> is used more than once, its gradient is the
+<strong>sum</strong> across every use, not the value from the last use:
+</p>
+<pre><code>self.grad += local_derivative * out.grad   # always +=, never =</code></pre>
+<p>
+This is the single most common bug in a hand-built autograd engine. If
+gradcheck fails only on expressions that reuse a variable
+(<code>b = a + a</code>, or anything shaped like it), this is why.
+</p>
+
+<h2>Local derivative of every op you need</h2>
+<table>
+<tr><th>op</th><th>forward</th><th>local derivative</th></tr>
+<tr><td>add</td><td><code>c = a + b</code></td><td><code>dc/da = 1, dc/db = 1</code></td></tr>
+<tr><td>multiply</td><td><code>c = a * b</code></td><td><code>dc/da = b, dc/db = a</code></td></tr>
+<tr><td>power</td><td><code>c = a**n</code></td><td><code>dc/da = n &middot; a**(n-1)</code></td></tr>
+<tr><td>exp</td><td><code>c = e**a</code></td><td><code>dc/da = c</code> (itself)</td></tr>
+<tr><td>log</td><td><code>c = ln(a)</code></td><td><code>dc/da = 1/a</code></td></tr>
+<tr><td>tanh</td><td><code>c = tanh(a)</code></td><td><code>dc/da = 1 &minus; c&sup2;</code></td></tr>
+<tr><td>relu</td><td><code>c = max(0, a)</code></td><td><code>dc/da = 1 if a &gt; 0 else 0</code></td></tr>
+<tr><td>sigmoid</td><td><code>c = 1/(1+e^-a)</code></td><td><code>dc/da = c &middot; (1 &minus; c)</code></td></tr>
+</table>
+<p class="sidenote">
+Notice a pattern: <code>tanh</code>, <code>relu</code>, and
+<code>sigmoid</code> all have local derivatives expressible in terms of
+their own <em>output</em> <code>c</code>, not the raw input <code>a</code>.
+That's why <code>Value.backward()</code> only ever needs
+<code>self.data</code> (its own cached forward value) to compute its
+contribution — you never need to recompute or re-store the input.
+</p>
+
+<h2>Sigmoid + binary cross-entropy shortcut</h2>
+<p>
+Worth memorizing, since you'll rederive it constantly: for
+<code>p = sigmoid(z)</code> and BCE loss against label <code>y &isin; {0,1}</code>,
+</p>
+<pre><code>dL/dz = p - y</code></pre>
+<p>Derived in <a href="../lessons/0001-derivatives-and-the-chain-rule.html">Lesson 0001</a>.</p>
+
+</body>
+</html>

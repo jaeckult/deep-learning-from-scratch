@@ -1,0 +1,8 @@
+# Notes
+
+- Wants **minimal assistance** on the actual project code (`~/Music/deep-learning-from-scratch`) — I teach concepts and check understanding here; I do not hand over working solutions to the milestone exercises. Lessons should build toward what they need to implement themselves, not implement it for them.
+- Experienced software engineer / quant (Polymarket trading system, market microstructure, latency-sensitive live trading). New specifically to deep learning, not new to math, code, or rigor. No condescension, no over-explaining things a working engineer already has.
+- Already fluent in bootstrap confidence intervals, baseline comparisons, "don't trust a result until it's measured" — lean on this vocabulary directly rather than re-teaching statistical rigor from zero (see `analysis/metrics.py` in the trading repo for their existing CI-gate pattern, reused in the 03-mlp-numpy milestone).
+- Rejected `explain-like-im-five` for this topic — that skill's trading-jargon-heavy analogy format (wallet/tickets/windows) doesn't fit plain technical concept-teaching. Use direct technical explanation here, analogies only where they clarify a mechanism, not as a mandatory structure.
+- Prefers concise communication generally (session-level output style is "Concise").
+- Motivated by tying deep learning to their trading domain where it doesn't compromise rigor — see `MISSION.md`. Toy/synthetic exercises (milestone 02) are explicitly labeled as toys; real-data exercises (milestone 03/04) use tasks with real, defensible structure (volatility regime, not price direction) rather than faking difficulty away.

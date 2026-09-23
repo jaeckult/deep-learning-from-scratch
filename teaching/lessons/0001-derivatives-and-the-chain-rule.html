@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Derivatives, and why the chain rule is the whole trick</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/quiz.js" defer></script>
+</head>
+<body>
+
+<div class="kicker">Lesson 0001 &middot; Deep Learning</div>
+<h1>Derivatives, and why the chain rule is the whole trick</h1>
+
+<div class="why">
+<strong>Why this lesson exists:</strong> <code>Value.backward()</code> in
+<code>01-autograd</code> is this rule, applied mechanically at every node in
+a graph. Nothing in backpropagation is more than what's on this page — the
+rest is bookkeeping.
+</div>
+
+<h2>A derivative is a sensitivity knob</h2>
+<p>
+Forget "slope of the tangent line" for a second. A derivative answers one
+question: <em>if I nudge the input by a tiny amount, how much does the
+output move, per unit of nudge?</em>
+</p>
+<p>Formally, for <code>f(x)</code>, the derivative at <code>x</code> is</p>
+<pre><code>f'(x) = lim (h&rarr;0) [f(x+h) &minus; f(x)] / h</code></pre>
+<p>
+Take <code>f(x) = x&sup2;</code>. Expand <code>(x+h)&sup2; &minus; x&sup2; = 2xh + h&sup2;</code>.
+Divide by <code>h</code>: <code>2x + h</code>. Let <code>h&rarr;0</code>: you're
+left with <code>2x</code>. That's the whole derivation — no magic, just
+algebra and a limit.
+</p>
+<p>
+This is also exactly what <code>gradcheck.py</code> does numerically,
+without the limit: pick a tiny <code>h</code> (like <code>1e-4</code>),
+compute <code>(f(x+h) &minus; f(x&minus;h)) / 2h</code>, and treat that as
+"close enough" to the true derivative. That's your ground truth for testing
+<code>Value.backward()</code>.
+</p>
+
+<div class="source">
+Primary source: 3Blue1Brown — <a href="https://www.youtube.com/watch?v=9vKqVkMQHKk">"The paradox of the derivative" (Essence of Calculus, ch. 2)</a>, ~17 min. Watch this if the limit definition feels like symbol-pushing rather than something you can see.
+</div>
+
+<h2>The chain rule: sensitivity through a pipe</h2>
+<p>
+Now suppose the output doesn't depend on <code>x</code> directly — it
+depends on <code>y</code>, which depends on <code>x</code>. Something like
+<code>x &rarr; y &rarr; z</code>. How sensitive is <code>z</code> to <code>x</code>?
+</p>
+<p><strong>You multiply the sensitivities along the chain:</strong></p>
+<pre><code>dz/dx = dz/dy &middot; dy/dx</code></pre>
+<p>
+That's it. That's backpropagation. If <code>z</code> moves 3 units for
+every 1-unit move in <code>y</code>, and <code>y</code> moves 2 units for
+every 1-unit move in <code>x</code>, then <code>z</code> moves 6 units for
+every 1-unit move in <code>x</code>. Sensitivities compose by
+multiplication, link by link.
+</p>
+<p>
+A computational graph is just a longer chain (with branches). Backprop
+walks it from the output back to the inputs, multiplying local derivatives
+as it goes, and — the one gotcha worth flagging now —
+<strong>adding them up when a value feeds into more than one place.</strong>
+If <code>a</code> is used twice, its total sensitivity is the sum of its
+sensitivity through each use. Forget the <code>+=</code> here and your
+engine will silently give wrong gradients for anything that reuses a
+<code>Value</code> — see the reference doc for the exact rule.
+</p>
+
+<div class="source">
+Primary source: 3Blue1Brown — <a href="https://www.youtube.com/watch?v=YG15m2VwSjA">"Visualizing the chain rule and product rule" (Essence of Calculus, ch. 4)</a>, ~18 min.
+</div>
+
+<h2>Worked example: the circuit from 01-autograd</h2>
+<p>
+This is the exact circuit your gradcheck target uses — a single logistic
+node, the atomic unit of everything you'll build in 02 and 03:
+</p>
+<pre><code>z = w1*x1 + w2*x2 + b
+p = sigmoid(z)                    where sigmoid(z) = 1 / (1 + e^-z)
+L = -[y&middot;log(p) + (1-y)&middot;log(1-p)]  (binary cross-entropy)</code></pre>
+<p>
+Chain rule for <code>dL/dw1</code>: <code>dL/dw1 = dL/dp &middot; dp/dz &middot; dz/dw1</code>.
+Each link is easy on its own:
+</p>
+<ul>
+<li><code>dz/dw1 = x1</code> — it's just the coefficient.</li>
+<li><code>dp/dz = p&middot;(1-p)</code> — the sigmoid's own derivative (take this as given for now; it falls out of the same limit-definition process as the <code>x&sup2;</code> example above).</li>
+<li><code>dL/dp = -(y/p) + (1-y)/(1-p)</code> — the BCE loss's derivative w.r.t. its input.</li>
+</ul>
+<p>
+Multiply <code>dL/dp &middot; dp/dz</code> and the algebra collapses to
+something much simpler than it looks:
+</p>
+<pre><code>dL/dz = p &minus; y</code></pre>
+<p>
+That's the entire messy chain-rule product, reduced to "prediction minus
+label." <strong>So:</strong>
+</p>
+<pre><code>dL/dw1 = (p - y) * x1
+dL/dw2 = (p - y) * x2
+dL/db  = (p - y)</code></pre>
+<p>
+If that looks like the gradient of plain linear regression — it is. The
+sigmoid+cross-entropy pairing is specifically chosen because it produces
+this clean a gradient; it's not a coincidence you'll see elsewhere in deep
+learning.
+</p>
+
+<h2>Try it — same numbers you'll use in gradcheck.py</h2>
+<p>
+<code>x1 = 1.5, x2 = -0.5, w1 = 0.8, w2 = 0.3, b = 0.1, y = 1</code>.
+Compute by hand, then check. Keep these numbers — feed them into your
+<code>Value</code> engine once it exists, as a second, hand-derived check
+alongside numerical gradient checking.
+</p>
+
+<div class="quiz" data-answer="0.7596" data-tolerance="0.001">
+<p><strong>Step 1.</strong> Compute <code>z = w1*x1 + w2*x2 + b</code>, then <code>p = sigmoid(z)</code>. What is <code>p</code>?</p>
+<label>p =</label>
+<input type="text" inputmode="decimal" placeholder="0.0000">
+<button type="button">Check</button>
+<div class="quiz-feedback"></div>
+</div>
+
+<div class="quiz" data-answer="-0.3606" data-tolerance="0.001">
+<p><strong>Step 2.</strong> Using <code>dL/dz = p - y</code>, what is <code>dL/dw1</code>?</p>
+<label>dL/dw1 =</label>
+<input type="text" inputmode="decimal" placeholder="0.0000">
+<button type="button">Check</button>
+<div class="quiz-feedback"></div>
+</div>
+
+<div class="quiz" data-answer="0.1202" data-tolerance="0.001">
+<p><strong>Step 3.</strong> What is <code>dL/dw2</code>?</p>
+<label>dL/dw2 =</label>
+<input type="text" inputmode="decimal" placeholder="0.0000">
+<button type="button">Check</button>
+<div class="quiz-feedback"></div>
+</div>
+
+<div class="quiz" data-answer="-0.2404" data-tolerance="0.001">
+<p><strong>Step 4.</strong> What is <code>dL/db</code>?</p>
+<label>dL/db =</label>
+<input type="text" inputmode="decimal" placeholder="0.0000">
+<button type="button">Check</button>
+<div class="quiz-feedback"></div>
+</div>
+
+<h2>Reference</h2>
+<p>
+<a href="../reference/calculus-for-backprop.html">calculus-for-backprop.html</a>
+— derivative table for every op <code>Value</code> needs (<code>+</code>,
+<code>*</code>, <code>pow</code>, <code>tanh</code>, <code>relu</code>,
+<code>sigmoid</code>, <code>exp</code>, <code>log</code>), plus the
+gradient-accumulation rule for reused values. Keep it open while writing
+<code>engine.py</code>.
+</p>
+
+<p class="followup">
+Stuck, or want to push on something not covered here? Ask me directly — I'm
+the teacher for this workspace, not just the author of this page.
+</p>
+
+<footer class="nav">
+<span>&larr; start</span>
+<span>next: implement <code>Value</code> and gradcheck it &rarr;</span>
+</footer>
+
+</body>
+</html>
